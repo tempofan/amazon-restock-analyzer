@@ -1,0 +1,9 @@
+重要文件备份 - 2025-01-22
+
+备份的核心文件：
+1. lingxing_api_doc_fetcher.py - 最终版本API文档获取器
+2. API文档访问解决方案.md - 完整解决方案文档
+3. api_doc_markdown_FBASug_InfoMSKU_1750583097.md - 最新API文档1
+4. api_doc_markdown_FBASug_SourceListMSKU_1750583097.md - 最新API文档2
+
+这些文件是项目的核心资产，已在清理前进行备份保护。
