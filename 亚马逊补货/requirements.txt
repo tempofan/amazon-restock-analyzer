@@ -17,6 +17,27 @@ pycryptodome>=3.15.0
 # 日期时间处理
 python-dateutil>=2.8.0
 
+# 数据库连接器
+# MySQL支持（可选）
+# PyMySQL>=1.0.0
+# mysqlclient>=2.1.0
+
+# PostgreSQL支持（可选）
+# psycopg2-binary>=2.9.0
+
+# SQLite支持（Python内置，无需安装）
+
+# 服务器相关
+Flask>=2.3.0  # Web服务器框架（飞书webhook必需）
+# gunicorn>=20.1.0  # 生产环境WSGI服务器（Linux）
+python-dotenv>=1.0.0  # 环境变量加载（配置文件支持）
+
+# 系统监控
+psutil>=5.9.0  # 系统资源监控
+
+# Windows服务支持
+pywin32>=306  # Windows服务支持（仅Windows系统需要）
+
 # JSON处理（Python内置，无需安装）
 # json
 

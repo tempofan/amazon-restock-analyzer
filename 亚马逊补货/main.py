@@ -12,10 +12,36 @@ from typing import List, Optional
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+# 加载环境变量
+def load_env_file(env_file: str = None):
+    """
+    加载环境变量文件
+    
+    Args:
+        env_file: 环境变量文件路径，默认为 config/server.env
+    """
+    if env_file is None:
+        env_file = os.path.join(os.path.dirname(__file__), 'config', 'server.env')
+    
+    if os.path.exists(env_file):
+        print(f"📄 加载环境配置文件: {env_file}")
+        with open(env_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    os.environ[key.strip()] = value.strip()
+        print("✅ 环境配置加载成功")
+    else:
+        print(f"⚠️ 环境配置文件不存在: {env_file}")
+
+# 加载环境变量
+load_env_file()
+
 from api.client import APIClient, APIException
 from business.restock_analyzer import RestockAnalyzer
 from utils.logger import api_logger
-from config.config import APIConfig
+from config.config import APIConfig, ServerConfig, StorageConfig
 
 def get_data_type_choice() -> int:
     """
@@ -91,8 +117,8 @@ def get_msku_enhancement_choice() -> bool:
     Returns:
         bool: True表示启用MSKU详细信息增强，False表示不启用
     """
-    # 默认启用MSKU详细信息增强
-    return True
+    # 默认禁用MSKU详细信息增强（太慢了）
+    return False
 
 def test_connection():
     """
@@ -398,11 +424,112 @@ def interactive_mode():
         except Exception as e:
             print(f"操作失败: {e}")
 
+def print_server_info():
+    """
+    打印服务器信息
+    """
+    print("🖥️ 服务器配置信息:")
+    print(f"  - 服务器IP: {ServerConfig.HOST}")
+    print(f"  - 服务器端口: {ServerConfig.PORT}")
+    print(f"  - 调试模式: {ServerConfig.DEBUG}")
+    print(f"  - 数据库类型: {os.getenv('DB_TYPE', 'sqlite')}")
+    print(f"  - 日志级别: {os.getenv('LOG_LEVEL', 'INFO')}")
+    print(f"  - 输出目录: {os.getenv('OUTPUT_DIR', 'output')}")
+    print()
+
+def check_server_environment():
+    """
+    检查服务器环境
+    """
+    print("🔍 检查服务器环境...")
+    
+    # 检查必要的目录
+    StorageConfig.ensure_directories()
+    
+    # 检查网络连通性
+    try:
+        import socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        result = sock.connect_ex((ServerConfig.HOST, ServerConfig.PORT))
+        sock.close()
+        
+        if result == 0:
+            print(f"⚠️ 端口 {ServerConfig.PORT} 已被占用")
+        else:
+            print(f"✅ 端口 {ServerConfig.PORT} 可用")
+    except Exception as e:
+        print(f"⚠️ 网络检查失败: {e}")
+    
+    # 检查磁盘空间
+    try:
+        import shutil
+        total, used, free = shutil.disk_usage('.')
+        free_gb = free // (1024**3)
+        print(f"💾 可用磁盘空间: {free_gb}GB")
+        
+        if free_gb < 1:
+            print("⚠️ 磁盘空间不足，建议至少保留1GB可用空间")
+    except Exception as e:
+        print(f"⚠️ 磁盘空间检查失败: {e}")
+    
+    print()
+
+def run_as_service():
+    """
+    以服务模式运行（持续运行，可通过信号停止）
+    """
+    print("🚀 启动服务模式...")
+    print(f"📍 服务运行在: http://{ServerConfig.HOST}:{ServerConfig.PORT}")
+    print("💡 按 Ctrl+C 停止服务")
+    print()
+    
+    try:
+        import time
+        import signal
+        
+        # 设置信号处理
+        def signal_handler(signum, frame):
+            print("\n🛑 接收到停止信号，正在优雅退出...")
+            sys.exit(0)
+        
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+        
+        # 服务主循环
+        while True:
+            print(f"⏰ 服务运行中... {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            
+            # 这里可以添加定时任务逻辑
+            # 比如定时获取补货数据、健康检查等
+            
+            time.sleep(300)  # 每5分钟输出一次状态
+            
+    except KeyboardInterrupt:
+        print("\n🛑 服务已停止")
+    except Exception as e:
+        print(f"❌ 服务运行异常: {e}")
+        api_logger.log_error(e, "服务运行异常")
+
+def run_feishu_webhook():
+    """
+    启动飞书Webhook服务器
+    """
+    try:
+        from feishu.webhook_server import run_server
+        run_server()
+    except ImportError as e:
+        print(f"❌ 导入飞书模块失败: {e}")
+        print("请确保已安装Flask: pip install Flask")
+    except Exception as e:
+        print(f"❌ 启动飞书服务失败: {e}")
+        api_logger.log_error(e, "启动飞书服务失败")
+
 def main():
     """
     主函数
     """
-    parser = argparse.ArgumentParser(description='领星ERP补货数据获取工具')
+    parser = argparse.ArgumentParser(description='领星ERP补货数据获取工具 🚀')
     parser.add_argument('--test', action='store_true', help='测试API连接')
     parser.add_argument('--sellers', action='store_true', help='获取店铺信息')
     parser.add_argument('--restock', action='store_true', help='获取补货数据')
@@ -421,16 +548,34 @@ def main():
                        help='导出格式（standard: 标准格式, detail: 明细拆分格式, both: 两种格式都有）')
     parser.add_argument('--enhance-msku-details', action='store_true', help='使用MSKU详细信息接口增强数据（会增加API调用次数）')
     parser.add_argument('--interactive', action='store_true', help='交互式模式')
+    parser.add_argument('--server', action='store_true', help='以服务模式运行')
+    parser.add_argument('--feishu', action='store_true', help='启动飞书Webhook服务器')
+    parser.add_argument('--check-env', action='store_true', help='检查服务器环境')
+    parser.add_argument('--env-file', type=str, help='指定环境变量文件路径')
     
     args = parser.parse_args()
     
+    # 如果指定了环境变量文件，重新加载
+    if args.env_file:
+        load_env_file(args.env_file)
+    
     # 确保必要的目录存在
-    os.makedirs('data', exist_ok=True)
-    os.makedirs('logs', exist_ok=True)
-    os.makedirs('output', exist_ok=True)
+    StorageConfig.ensure_directories()
+    
+    # 打印服务器信息
+    if args.server or args.check_env:
+        print_server_info()
     
     try:
-        if args.interactive:
+        if args.check_env:
+            check_server_environment()
+        elif args.feishu:
+            check_server_environment()
+            run_feishu_webhook()
+        elif args.server:
+            check_server_environment()
+            run_as_service()
+        elif args.interactive:
             interactive_mode()
         elif args.test:
             test_connection()

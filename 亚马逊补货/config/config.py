@@ -6,6 +6,34 @@
 
 import os
 from typing import Dict, Any
+from dotenv import load_dotenv
+
+# 🔧 加载环境变量配置文件
+load_dotenv('config/server.env')
+
+# 服务器配置
+class ServerConfig:
+    """服务器配置类"""
+    
+    # 服务器基础配置
+    HOST = os.getenv('SERVER_HOST', '127.0.0.1')  # 服务器IP
+    PORT = int(os.getenv('SERVER_PORT', '8000'))      # 服务器端口
+    DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
+    
+    # 允许访问的主机
+    ALLOWED_HOSTS = [
+        '192.168.0.99',
+        'localhost',
+        '127.0.0.1',
+        '0.0.0.0'
+    ]
+    
+    # 跨域配置
+    CORS_ALLOWED_ORIGINS = [
+        'http://192.168.0.99:8000',
+        'http://localhost:8000',
+        'http://127.0.0.1:8000'
+    ]
 
 # API基础配置
 class APIConfig:
@@ -28,14 +56,14 @@ class APIConfig:
         "msku_detail_info": "/erp/sc/routing/fbaSug/msku/getInfo"
     }
     
-    # 应用凭证
-    APP_ID = "ak_kRqgsBxncVls3"
-    APP_SECRET = "baT6edtY8AwlU9yIAlFqNQ=="
+    # 应用凭证 - 直接设置正确的值
+    APP_ID = 'ak_ogLvclRkg2uTq'
+    APP_SECRET = 'S2Ufo0CpKeV4J9JwoTQ7wg=='
     
     # 请求配置
-    REQUEST_TIMEOUT = 30  # 请求超时时间（秒）
-    MAX_RETRIES = 3  # 最大重试次数
-    RETRY_DELAY = 1  # 重试延迟（秒）
+    REQUEST_TIMEOUT = int(os.getenv('REQUEST_TIMEOUT', '30'))  # 请求超时时间（秒）
+    MAX_RETRIES = int(os.getenv('MAX_RETRIES', '3'))          # 最大重试次数
+    RETRY_DELAY = int(os.getenv('RETRY_DELAY', '1'))          # 重试延迟（秒）
     
     # 分页配置
     DEFAULT_PAGE_SIZE = 20
@@ -69,18 +97,40 @@ class APIConfig:
 class LogConfig:
     """日志配置类"""
     
-    LOG_LEVEL = "INFO"
+    LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
     LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     LOG_FILE = "logs/lingxing_api.log"
     MAX_LOG_SIZE = 10 * 1024 * 1024  # 10MB
     BACKUP_COUNT = 5
 
-# 数据库配置（如果需要）
+# 数据库配置
 class DatabaseConfig:
     """数据库配置类"""
     
+    # 数据库类型
+    DB_TYPE = os.getenv('DB_TYPE', 'sqlite')  # sqlite, mysql, postgresql
+    
     # SQLite配置（默认）
     SQLITE_DB_PATH = "data/lingxing_data.db"
+    
+    # MySQL配置
+    MYSQL_CONFIG = {
+        'host': os.getenv('MYSQL_HOST', '192.168.0.99'),
+        'port': int(os.getenv('MYSQL_PORT', '3306')),
+        'user': os.getenv('MYSQL_USER', 'root'),
+        'password': os.getenv('MYSQL_PASSWORD', ''),
+        'database': os.getenv('MYSQL_DATABASE', 'amazon_restock'),
+        'charset': 'utf8mb4'
+    }
+    
+    # PostgreSQL配置
+    POSTGRESQL_CONFIG = {
+        'host': os.getenv('POSTGRES_HOST', '192.168.0.99'),
+        'port': int(os.getenv('POSTGRES_PORT', '5432')),
+        'user': os.getenv('POSTGRES_USER', 'postgres'),
+        'password': os.getenv('POSTGRES_PASSWORD', ''),
+        'database': os.getenv('POSTGRES_DATABASE', 'amazon_restock')
+    }
     
     # 表名配置
     TABLES = {
@@ -89,3 +139,61 @@ class DatabaseConfig:
         "listings": "listing_data",
         "restock_data": "restock_suggestions"
     }
+    
+    @classmethod
+    def get_database_url(cls) -> str:
+        """获取数据库连接URL"""
+        if cls.DB_TYPE == 'mysql':
+            config = cls.MYSQL_CONFIG
+            return f"mysql://{config['user']}:{config['password']}@{config['host']}:{config['port']}/{config['database']}"
+        elif cls.DB_TYPE == 'postgresql':
+            config = cls.POSTGRESQL_CONFIG
+            return f"postgresql://{config['user']}:{config['password']}@{config['host']}:{config['port']}/{config['database']}"
+        else:
+            return f"sqlite:///{cls.SQLITE_DB_PATH}"
+
+# 文件存储配置
+class StorageConfig:
+    """文件存储配置类"""
+    
+    # 输出目录
+    OUTPUT_DIR = os.getenv('OUTPUT_DIR', 'output')
+    
+    # 数据目录
+    DATA_DIR = os.getenv('DATA_DIR', 'data')
+    
+    # 日志目录
+    LOG_DIR = os.getenv('LOG_DIR', 'logs')
+    
+    # 临时文件目录
+    TEMP_DIR = os.getenv('TEMP_DIR', 'temp')
+    
+    # 文件上传配置
+    MAX_FILE_SIZE = int(os.getenv('MAX_FILE_SIZE', '100')) * 1024 * 1024  # 100MB
+    ALLOWED_FILE_TYPES = ['.xlsx', '.xls', '.csv', '.json']
+    
+    @classmethod
+    def ensure_directories(cls):
+        """确保所有必要目录存在"""
+        directories = [cls.OUTPUT_DIR, cls.DATA_DIR, cls.LOG_DIR, cls.TEMP_DIR]
+        for directory in directories:
+            os.makedirs(directory, exist_ok=True)
+
+# 安全配置
+class SecurityConfig:
+    """安全配置类"""
+    
+    # API密钥
+    SECRET_KEY = os.getenv('SECRET_KEY', 'your-secret-key-here')
+    
+    # 请求频率限制
+    RATE_LIMIT = {
+        'requests_per_minute': int(os.getenv('RATE_LIMIT_PER_MINUTE', '60')),
+        'requests_per_hour': int(os.getenv('RATE_LIMIT_PER_HOUR', '1000'))
+    }
+    
+    # IP白名单
+    ALLOWED_IPS = os.getenv('ALLOWED_IPS', '').split(',') if os.getenv('ALLOWED_IPS') else []
+    
+    # 会话配置
+    SESSION_TIMEOUT = int(os.getenv('SESSION_TIMEOUT', '3600'))  # 1小时

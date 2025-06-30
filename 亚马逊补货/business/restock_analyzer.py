@@ -5,6 +5,7 @@
 """
 
 import json
+import time
 import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Tuple
@@ -1147,6 +1148,9 @@ class RestockAnalyzer:
         try:
             api_logger.logger.info(f"获取MSKU详细信息: sid={sid}, msku={msku}, mode={mode}")
             
+            # 🚦 增加请求间延迟，防止频率限制
+            time.sleep(1.0)  # 增加到每个请求间隔1秒
+            
             # 调用API获取MSKU详细信息
             response = self.api_client.get_msku_detail_info(sid, msku, mode)
             
@@ -1162,13 +1166,13 @@ class RestockAnalyzer:
             api_logger.log_error(e, f"获取MSKU详细信息异常: sid={sid}, msku={msku}")
             return {}
     
-    def get_msku_details_batch(self, msku_list: List[dict], max_workers: int = 5) -> List[dict]:
+    def get_msku_details_batch(self, msku_list: List[dict], max_workers: int = 1) -> List[dict]:
         """
         批量获取MSKU详细信息
         
         Args:
             msku_list: MSKU列表，每个元素包含 {'sid': str, 'msku': str, 'mode': str}
-            max_workers: 最大并发数
+            max_workers: 最大并发数，默认为1（完全串行）
             
         Returns:
             List[dict]: MSKU详细信息列表
@@ -1194,19 +1198,27 @@ class RestockAnalyzer:
                 api_logger.log_error(e, f"获取单个MSKU详细信息失败: {msku_info}")
                 return None
         
-        # 使用线程池并发获取
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_msku = {executor.submit(fetch_single_msku, msku_info): msku_info 
-                             for msku_info in msku_list}
-            
-            for future in as_completed(future_to_msku):
-                msku_info = future_to_msku[future]
-                try:
-                    result = future.result()
-                    if result:
-                        results.append(result)
-                except Exception as e:
-                    api_logger.log_error(e, f"处理MSKU详细信息结果失败: {msku_info}")
+        # 如果并发数为1，则完全串行处理，避免并发请求
+        if max_workers == 1:
+            api_logger.logger.info("使用串行模式处理MSKU详细信息获取")
+            for msku_info in msku_list:
+                result = fetch_single_msku(msku_info)
+                if result:
+                    results.append(result)
+        else:
+            # 使用线程池并发获取
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_to_msku = {executor.submit(fetch_single_msku, msku_info): msku_info 
+                                 for msku_info in msku_list}
+                
+                for future in as_completed(future_to_msku):
+                    msku_info = future_to_msku[future]
+                    try:
+                        result = future.result()
+                        if result:
+                            results.append(result)
+                    except Exception as e:
+                        api_logger.log_error(e, f"处理MSKU详细信息结果失败: {msku_info}")
         
         api_logger.logger.info(f"批量获取MSKU详细信息完成，成功获取{len(results)}个")
         return results

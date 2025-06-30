@@ -50,12 +50,18 @@ echo.
 
 REM Check configuration file
 echo Checking configuration file...
-if not exist ".env" (
-    echo WARNING: .env file not found, creating template...
-    copy ".env.example" ".env" >nul
-    echo .env template file created, please edit configuration
+if not exist "config\server.env" (
+    echo WARNING: Server configuration file not found
+    echo Please edit config\server.env to configure server settings
 ) else (
-    echo Configuration file exists
+    echo Server configuration file exists
+)
+
+REM Create .env symlink if it doesn't exist
+if not exist ".env" (
+    echo Creating .env link to config\server.env...
+    copy "config\server.env" ".env" >nul
+    echo .env file created
 )
 echo.
 
@@ -72,9 +78,13 @@ echo.
 echo Deployment completed!
 echo.
 echo Next steps:
-echo 1. Edit .env file to configure API keys
-echo 2. Run: python main.py
-echo 3. Or create Windows service (optional)
+echo 1. Edit config\server.env file to configure server settings
+echo 2. Run interactive mode: python main.py --interactive
+echo 3. Run server mode: python main.py --server
+echo 4. Check environment: python main.py --check-env
+echo 5. Test API connection: python main.py --test
+echo.
+echo Server will run on: http://192.168.0.99:8000
 echo.
 echo For more information, see README.md
 echo.

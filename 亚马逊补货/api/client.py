@@ -14,6 +14,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
 from config.config import APIConfig
+from config.proxy_config import ProxyConfig
+from config.api_strategy import APIStrategy
 from auth.token_manager import TokenManager
 from utils.logger import api_logger
 from utils.crypto_utils import RequestBuilder, CryptoUtils
@@ -31,7 +33,14 @@ class APIClient:
         """
         self.app_id = app_id or APIConfig.APP_ID
         self.app_secret = app_secret or APIConfig.APP_SECRET
-        self.base_url = APIConfig.BASE_URL
+        
+        # 🌐 根据代理配置决定使用的基础URL
+        if ProxyConfig.is_proxy_enabled():
+            self.base_url = ProxyConfig.get_proxy_base_url()
+            api_logger.logger.info(f"🌐 启用代理模式: {self.base_url}")
+        else:
+            self.base_url = APIConfig.BASE_URL
+            api_logger.logger.info(f"🔗 直连模式: {self.base_url}")
         
         # 初始化Token管理器
         self.token_manager = TokenManager(self.app_id, self.app_secret)
@@ -49,9 +58,18 @@ class APIClient:
         """
         session = requests.Session()
         
-        # 配置重试策略
+        # 🔄 根据代理模式配置重试策略
+        if ProxyConfig.is_proxy_enabled():
+            # 代理模式：使用代理配置的重试次数
+            max_retries = ProxyConfig.PROXY_RETRIES
+            timeout = ProxyConfig.PROXY_TIMEOUT
+        else:
+            # 直连模式：使用API配置的重试次数
+            max_retries = APIConfig.MAX_RETRIES
+            timeout = APIConfig.REQUEST_TIMEOUT
+        
         retry_strategy = Retry(
-            total=APIConfig.MAX_RETRIES,
+            total=max_retries,
             backoff_factor=APIConfig.RETRY_DELAY,
             status_forcelist=[429, 500, 502, 503, 504],
             allowed_methods=["HEAD", "GET", "POST"]
@@ -89,21 +107,43 @@ class APIClient:
             # 创建请求构建器
             request_builder = RequestBuilder(self.app_id, access_token)
             
-            # 构建完整URL
-            url = f"{self.base_url}{endpoint}"
+            # 🎯 根据API类型决定是否使用代理
+            api_type = 'business'  # 大部分API都是业务API
+            if '/auth-server/' in endpoint:
+                api_type = 'auth'
+            
+            use_proxy = APIStrategy.should_use_proxy(api_type)
+            base_url = APIStrategy.get_base_url(api_type)
             
             # 准备请求参数
             if method.upper() == 'GET':
-                # GET请求：所有参数都在URL中
-                url = request_builder.build_get_url(self.base_url, endpoint, params)
-                final_params = None
-                final_json = None
+                if use_proxy:
+                    # 🌐 代理模式：构建完整的原始URL然后通过代理转发
+                    original_url = request_builder.build_get_url(APIConfig.BASE_URL, endpoint, params)
+                    # 提取原始URL中的endpoint和参数部分
+                    url_parts = original_url.replace(APIConfig.BASE_URL, "").lstrip('/')
+                    url = f"{base_url}/{url_parts}"
+                    final_params = None
+                    final_json = None
+                else:
+                    # 🔗 直连模式：原有逻辑
+                    url = request_builder.build_get_url(base_url, endpoint, params)
+                    final_params = None
+                    final_json = None
             else:
-                # POST请求：公共参数在URL中，业务参数在body中
-                query_params, body_params = request_builder.build_post_params(params)
-                url += '?' + CryptoUtils.build_query_params(query_params)
-                final_params = None
-                final_json = body_params if body_params else json_data
+                if use_proxy:
+                    # 🌐 代理模式：POST请求处理
+                    query_params, body_params = request_builder.build_post_params(params)
+                    original_query = CryptoUtils.build_query_params(query_params)
+                    url = f"{base_url}{endpoint}?{original_query}"
+                    final_params = None
+                    final_json = body_params if body_params else json_data
+                else:
+                    # 🔗 直连模式：原有逻辑
+                    query_params, body_params = request_builder.build_post_params(params)
+                    url = f"{base_url}{endpoint}?" + CryptoUtils.build_query_params(query_params)
+                    final_params = None
+                    final_json = body_params if body_params else json_data
             
             # 设置默认请求头
             final_headers = {
@@ -120,6 +160,9 @@ class APIClient:
             # 记录请求日志
             api_logger.log_request(method, url, final_params, final_headers, final_json)
             
+            # 🔄 根据API策略选择超时时间
+            timeout = APIStrategy.get_timeout(api_type)
+            
             # 发送请求
             response = self.session.request(
                 method=method,
@@ -127,7 +170,7 @@ class APIClient:
                 params=final_params,
                 json=final_json,
                 headers=final_headers,
-                timeout=APIConfig.REQUEST_TIMEOUT
+                timeout=timeout
             )
             
             # 计算响应时间
@@ -171,6 +214,21 @@ class APIClient:
                             api_logger.logger.info(f"第{self._retry_count}次重试请求")
                             return self._make_request(method, endpoint, params, json_data, headers)
                     
+                    # 🚦 检查是否是频率限制错误
+                    elif str(code) == '3001008':
+                        api_logger.logger.warning(f"触发频率限制，等待后重试: {error_msg}")
+                        if hasattr(self, '_rate_limit_retry_count'):
+                            self._rate_limit_retry_count += 1
+                        else:
+                            self._rate_limit_retry_count = 1
+                        
+                        if self._rate_limit_retry_count <= 5:  # 增加到最多重试5次
+                            # 更积极的延迟策略：3^retry_count 秒，最少5秒
+                            delay = max(5, 3 ** self._rate_limit_retry_count)
+                            api_logger.logger.info(f"频率限制第{self._rate_limit_retry_count}次重试，等待{delay}秒")
+                            time.sleep(delay)
+                            return self._make_request(method, endpoint, params, json_data, headers)
+                    
                     raise APIException(
                         f"API错误: {error_msg}",
                         code,
@@ -181,6 +239,8 @@ class APIClient:
             # 重置重试计数
             if hasattr(self, '_retry_count'):
                 delattr(self, '_retry_count')
+            if hasattr(self, '_rate_limit_retry_count'):
+                delattr(self, '_rate_limit_retry_count')
             
             return response_data
             

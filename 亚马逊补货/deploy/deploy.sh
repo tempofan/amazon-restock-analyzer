@@ -44,12 +44,18 @@ mkdir -p data
 
 # 检查配置文件
 echo "⚙️ 检查配置文件..."
-if [ ! -f ".env" ]; then
-    echo "⚠️ 未找到.env配置文件，请复制.env.example为.env并配置相关参数"
-    cp .env.example .env
-    echo "✅ 已创建.env模板文件，请编辑配置"
+if [ ! -f "config/server.env" ]; then
+    echo "⚠️ 未找到服务器配置文件 config/server.env"
+    echo "📝 请编辑 config/server.env 来配置服务器设置"
 else
-    echo "✅ 配置文件已存在"
+    echo "✅ 服务器配置文件已存在"
+fi
+
+# 创建.env软链接
+if [ ! -f ".env" ]; then
+    echo "🔗 创建.env软链接..."
+    ln -sf config/server.env .env
+    echo "✅ .env软链接已创建"
 fi
 
 # 设置权限
@@ -70,8 +76,17 @@ fi
 echo "🎉 部署完成！"
 echo ""
 echo "📝 下一步操作："
-echo "1. 编辑 .env 文件，配置API密钥"
-echo "2. 运行: python main.py"
-echo "3. 或者设置为系统服务（可选）"
+echo "1. 编辑 config/server.env 文件，配置服务器设置"
+echo "2. 运行交互模式: python main.py --interactive"
+echo "3. 运行服务器模式: python main.py --server"
+echo "4. 检查环境: python main.py --check-env"
+echo "5. 测试API连接: python main.py --test"
+echo ""
+echo "🌐 服务器将运行在: http://192.168.0.99:8000"
+echo ""
+echo "🔧 可选操作："
+echo "- 设置为系统服务（systemd）"
+echo "- 配置防火墙规则"
+echo "- 设置定时任务"
 echo ""
 echo "📚 更多信息请查看 README.md"

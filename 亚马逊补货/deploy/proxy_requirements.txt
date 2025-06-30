@@ -1,0 +1,16 @@
+# 🌐 云代理服务器依赖包
+# 在云服务器上运行：pip install -r proxy_requirements.txt
+
+# Web框架
+Flask==2.3.3
+flask-cors==4.0.0
+
+# HTTP请求库
+requests==2.31.0
+urllib3==2.0.7
+
+# HTTP适配器和重试
+requests[security]==2.31.0
+
+# 日志和工具
+python-dateutil==2.8.2 

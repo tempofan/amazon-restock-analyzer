@@ -196,6 +196,33 @@ class APILogger:
         
         self.logger.info(msg)
     
+    def log_info(self, message: str):
+        """
+        记录信息日志（兼容性方法）
+        
+        Args:
+            message: 日志信息
+        """
+        self.logger.info(message)
+    
+    def log_warning(self, message: str):
+        """
+        记录警告日志（兼容性方法）
+        
+        Args:
+            message: 日志信息
+        """
+        self.logger.warning(message)
+    
+    def log_debug(self, message: str):
+        """
+        记录调试日志（兼容性方法）
+        
+        Args:
+            message: 日志信息
+        """
+        self.logger.debug(message)
+    
     def _mask_sensitive_data(self, data: dict) -> dict:
         """
         隐藏敏感数据

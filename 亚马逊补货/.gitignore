@@ -24,6 +24,8 @@ PIPFILE.lock
 # 虚拟环境
 .venv/
 venv/
+venv_*/
+venv_environments/
 ENV/
 env/
 .env
@@ -82,7 +84,7 @@ docs/_build/
 temp/
 tmp/
 
-# 排除父目录的其他项目
+# 排除父目录的其他项目和文件
 ../亚马逊补货建议/
 ../Old/
 ../.idea/
@@ -90,3 +92,26 @@ tmp/
 ../文件夹导出工具/
 ../启动限流优化测试.bat
 ../数据库解决方案设计.md
+../亚马逊分析/
+../亚马逊图片上传图床工具/
+../亚马逊图片重命名工具/
+../ABA表格重命名工具/
+../ASIN的转化率分析工具/
+../GitHub图片上传工具/
+../MSKU表现分析器/
+../丝带市场分析工具/
+../*.code-workspace
+../browser-tools-mcp/
+../api_tools/
+../cursor rules/
+../data/
+../json转换工具/
+../temp_files/
+../logs/
+../pythonproject.code-workspace
+../lingxing_*.md
+
+# 排除某些配置和密钥文件
+deploy/云服务器密钥/
+*.pem
+*.ppk

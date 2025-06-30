@@ -13,8 +13,10 @@ from typing import Optional, Dict, Any
 from urllib.parse import urlencode
 
 from config.config import APIConfig
+from config.proxy_config import ProxyConfig
 from utils.logger import api_logger
 from utils.crypto_utils import CryptoUtils
+from config.api_strategy import APIStrategy
 
 class TokenStorage:
     """Token存储管理器"""
@@ -187,25 +189,31 @@ class TokenManager:
         try:
             api_logger.logger.info("开始获取新的access_token")
             
-            url = f"{APIConfig.BASE_URL}{APIConfig.AUTH_URLS['get_token']}"
+            # 🎯 使用API策略决定是否通过云代理
+            api_type = 'auth'
+            base_url = APIStrategy.get_base_url(api_type)
+            timeout = APIStrategy.get_timeout(api_type)
+            
+            url = f"{base_url}{APIConfig.AUTH_URLS['get_token']}"
             
             # 准备请求数据
-            data = {
+            request_data = {
                 'appId': self.app_id,
                 'appSecret': self.app_secret
             }
             
+            # 使用form格式
             headers = {
                 'Content-Type': 'application/x-www-form-urlencoded'
             }
-            
-            api_logger.log_request('POST', url, body=data)
+            api_logger.log_request('POST', url, body=request_data)
             
             # 发送请求
             response = requests.post(
                 url, 
-                data=data, 
-                timeout=APIConfig.REQUEST_TIMEOUT
+                data=request_data,
+                headers=headers,
+                timeout=timeout
             )
             
             api_logger.log_response(response.status_code, response_time=None)
@@ -257,25 +265,31 @@ class TokenManager:
         try:
             api_logger.logger.info("开始刷新access_token")
             
-            url = f"{APIConfig.BASE_URL}{APIConfig.AUTH_URLS['refresh_token']}"
+            # 🎯 使用API策略决定是否通过云代理
+            api_type = 'auth'
+            base_url = APIStrategy.get_base_url(api_type)
+            timeout = APIStrategy.get_timeout(api_type)
+            
+            url = f"{base_url}{APIConfig.AUTH_URLS['refresh_token']}"
             
             # 准备请求数据
-            data = {
+            request_data = {
                 'appId': self.app_id,
                 'refreshToken': self._current_token_data['refresh_token']
             }
             
+            # 使用form格式
             headers = {
-                'Content-Type': 'multipart/form-data'
+                'Content-Type': 'application/x-www-form-urlencoded'
             }
-            
-            api_logger.log_request('POST', url, body=data)
+            api_logger.log_request('POST', url, body=request_data)
             
             # 发送请求
             response = requests.post(
                 url, 
-                data=data, 
-                timeout=APIConfig.REQUEST_TIMEOUT
+                data=request_data,
+                headers=headers,
+                timeout=timeout
             )
             
             if response.status_code == 200:
